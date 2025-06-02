@@ -67,7 +67,7 @@ PCB Files are located in the /OSSM-M5-Remote/Hardware/PCB folder if you want to 
 
 | Quantity | Part | Information |
 |----------|------|-------------|
-| 1x | Bottom.stl or Bottom_Adafruit_LIPO.stl or Bottom-Magnets.stl| There is a specific version for the wider Adafruit LIPO battery. Print with the base side facing down, 6 walls 20% Infill | 
+| 1x | M5_curved_w6mm+5.stl Thanks to "Hoodlatch" KM Discord | There is a specific version for the wider Adafruit LIPO battery. Print with the base side facing down, 6 walls 20% Infill | 
 | 1x | TOP-*-Keycap-Standoff.stl | Top Depends on your Keycap: Cherry or DSA (DSA is wider) | 
 | 4x | M5_Remote_Knob_Customizable.scad | If you go for the 3d Printed knobs |
 
