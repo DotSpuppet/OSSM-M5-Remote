@@ -11,8 +11,8 @@
 #include <lvgl.h>
 #include <SPI.h>
 #include "ui/ui.h"
-#include <EEPROM.h>
 #include "main.h"
+#include "Preferences.h"
 
 #define LV_CONF_INCLUDE_SIMPLE
 #include <lvgl.h>
@@ -71,12 +71,8 @@ int st_screens = ST_UI_START;
 
 int menuestatus = CONNECT;
 
-// EEPROM Area:
-
-#define EJECT 0
-#define DARKMODE 1
-#define VIBRATE 2
-#define LEFTY 6
+// EEPROM replacement function using Non-volatie memory (NVS)
+Preferences m5prf; //initiate an instance of the Preferences library
 
 bool eject_status = false;
 bool dark_mode = false;
@@ -206,8 +202,6 @@ uint8_t OSSM_Address[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Broadcast to a
 bool EJECT_On = false;
 bool OSSM_On = false;
 
-#define EEPROM_SIZE 200
-
 // Tasks:
 
 TaskHandle_t eRemote_t  = nullptr;  // Esp Now Remote Task
@@ -215,7 +209,16 @@ TaskHandle_t eRemote_t  = nullptr;  // Esp Now Remote Task
 void espNowRemoteTask(void *pvParameters); // Handels the EspNow Remote
 bool connectbtn(); //Handels Connectbtn
 int64_t touchmenue();
-void vibrate();
+
+// Makes vibration motor go Brrrrr
+void vibrate(int vbr_Intensity = 200, int vbr_Length = 100){
+    if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 1){
+      M5.Power.setVibration(vbr_Intensity);
+      vTaskDelay(vbr_Length);
+      M5.Power.setVibration(0);
+    }
+}
+
 void mxclick();
 bool mxclick_short_waspressed = false;
 void mxlong();
@@ -249,14 +252,16 @@ void my_touchpad_read(lv_indev_t * drv, lv_indev_data_t * data) {
   M5.update();
   auto count = M5.Touch.getCount();
 
-  if ( count == 0 ) {
-    data->state = LV_INDEV_STATE_RELEASED;
-  } else {
-    auto touch = M5.Touch.getDetail(0);
-    data->state = LV_INDEV_STATE_PRESSED; 
-    data->point.x = touch.x;
-    data->point.y = touch.y;
-  }
+  if(touch_disabled != true){
+    if ( count == 0 ) {
+      data->state = LV_INDEV_STATE_RELEASED;
+    } else {
+      auto touch = M5.Touch.getDetail(0);
+      data->state = LV_INDEV_STATE_PRESSED; 
+      data->point.x = touch.x;
+      data->point.y = touch.y;
+    }
+}
 }
 
 static void event_cb(lv_event_t *e)
@@ -384,29 +389,49 @@ void connectbutton(lv_event_t * e)
 
 void savesettings(lv_event_t * e)
 {
-	if(lv_obj_get_state(ui_ejectaddon) == 1){
-		EEPROM.writeBool(EJECT,true);
-	} else if(lv_obj_get_state(ui_ejectaddon) == 0){
-		EEPROM.writeBool(EJECT,false);
+
+  m5prf.begin("m5-ctnr", false); //open NVS-storage container/session. False means that it's used it in read+write mode. Set true to open or create the namespace in read-only mode.
+
+  if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 1){
+    m5prf.putBool("Vibrate", true); //NSV-storage write true to key "Vibrate"
+	}else if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 0){
+    m5prf.putBool("Vibrate", false);
 	}
-  if(lv_obj_get_state(ui_darkmode) == 1){
-		EEPROM.writeBool(DARKMODE,true);
-	} else if(lv_obj_get_state(ui_darkmode) == 0){
-		EEPROM.writeBool(DARKMODE,false);
+
+  if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+    m5prf.putBool("Lefty", true); // ui_lefty in SL-Studio code is actually Touch-enable toggle
+	}else if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 0){
+    m5prf.putBool("Lefty", false);
 	}
-  if(lv_obj_get_state(ui_vibrate) == 1){
-		EEPROM.writeBool(VIBRATE,true);
-	} else if(lv_obj_get_state(ui_vibrate) == 0){
-		EEPROM.writeBool(VIBRATE,false);
+
+	if(lv_obj_has_state(ui_ejectaddon, LV_STATE_CHECKED) == 1){
+    m5prf.putBool("ejectAddon", true);  
+	}else if(lv_obj_has_state(ui_ejectaddon, LV_STATE_CHECKED) == 0){
+    m5prf.putBool("ejectAddon", false);
 	}
-  if(lv_obj_get_state(ui_lefty) == 1){
-		EEPROM.writeBool(LEFTY,true);
-	} else if(lv_obj_get_state(ui_lefty) == 0){
-		EEPROM.writeBool(LEFTY,false);
+
+  //read darkmode saved setting to force reboot for theme change
+  bool theme_Change_Previous = false;
+  bool theme_Change_New = false;
+  theme_Change_Previous = m5prf.getBool("Darkmode", true);
+
+  if(lv_obj_has_state(ui_darkmode, LV_STATE_CHECKED) == 1){
+    theme_Change_New = true;
+    m5prf.putBool("Darkmode", true);
+	}else if(lv_obj_has_state(ui_darkmode, LV_STATE_CHECKED) == 0){
+    theme_Change_New = false;
+    m5prf.putBool("Darkmode", false);
 	}
-  EEPROM.commit();
+
+  m5prf.end(); //close storage container/session.
   delay(100);
-  ESP.restart();
+
+  if(theme_Change_Previous != theme_Change_New){
+    vibrate(225,75);
+    ESP.restart(); //reboot is only required to change themes, you don't need to restart for settings to save with NVS.
+  }else{
+    vibrate(225,75);
+  }
 }
 
 void screenmachine(lv_event_t * e)
@@ -496,10 +521,17 @@ void setupdepthF(lv_event_t * e){
 void setup(){
   auto cfg = M5.config();
   M5.begin(cfg);
-  EEPROM.begin(EEPROM_SIZE);
+
+  m5prf.begin("m5-ctnr", false); 
+    // Loads these settings at boot
+    eject_status = m5prf.getBool("ejectAddon", false); //boolean here is used if key does not exist yet
+    dark_mode = m5prf.getBool("Darkmode", true);       // ^ (basically first boot defaults, saving settings surives a re-flash!)
+    vibrate_mode = m5prf.getBool("Vibrate", true);
+     touch_home= m5prf.getBool("Lefty", false);       // = touchcreen. There apears to be no actual lefthanded mode anywhere
+  m5prf.end();
 
   M5.Power.setChargeCurrent(BATTERY_CHARGE_CURRENT);
-  LogDebug("\n Starting");      // Start LogDebug 
+  LogDebug("\n Starting");      // Start LogDebug
 
   WiFi.mode(WIFI_STA);
   LogDebug(WiFi.macAddress());
@@ -540,12 +572,6 @@ void setup(){
   Button1.attachLongPressStop(mxlong);
   Button2.attachClick(click2);
   Button3.attachClick(click3);
-
-    //****Load EEPROOM:
-  eject_status = EEPROM.readBool(EJECT);
-  dark_mode = EEPROM.readBool(DARKMODE);
-  vibrate_mode = EEPROM.readBool(VIBRATE);
-  touch_home = EEPROM.readBool(LEFTY);
 
   // Initialize `disp_buf` display buffer with the buffer(s).
   // lv_draw_buf_init(&draw_buf, LV_HOR_RES_MAX, LV_VER_RES_MAX);
@@ -616,8 +642,12 @@ void loop()
 
      switch(st_screens){
       
-     case ST_UI_START:
+     case ST_UI_START: //Menu With logo after boot
       {
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+          touch_disabled = true;
+        }
+
         if(click2_short_waspressed == true){
          lv_obj_send_event(ui_StartButtonL, LV_EVENT_CLICKED, NULL);
         } else if(mxclick_short_waspressed == true){
@@ -628,9 +658,9 @@ void loop()
       }
       break;
 
-      case ST_UI_HOME:
+      case ST_UI_HOME: //Menu with OSSM control sliders
       {
-        if(touch_home == true){
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
           touch_disabled = true;
         }
         // Encoder 1 Speed 
@@ -738,7 +768,7 @@ void loop()
 
       case ST_UI_MENUE:
       {
-        if(touch_home == true){
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
           touch_disabled = true;
         }
         if(encoder4.getCount() > encoder4_enc + 2){
@@ -763,7 +793,7 @@ void loop()
 
       case ST_UI_PATTERN:
       {
-        if(touch_home == true){
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
           touch_disabled = true;
         }
         if(encoder4.getCount() > encoder4_enc + 2){
@@ -789,7 +819,7 @@ void loop()
 
       case ST_UI_Torqe:
       {
-        if(touch_home == true){
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
           touch_disabled = true;
         }
         // Encoder 1 Torqe Out
@@ -850,7 +880,7 @@ void loop()
 
       case ST_UI_EJECTSETTINGS:
       {
-        if(touch_home == true){
+        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
           touch_disabled = true;
         }
         
@@ -864,9 +894,10 @@ void loop()
       }
       break;
 
-      case ST_UI_SETTINGS:
+      case ST_UI_SETTINGS: //Settings Menu
       {
         touch_disabled = false;
+
         if(encoder4.getCount() > encoder4_enc + 2){
           LogDebug("next");
           lv_group_focus_next(ui_g_settings);
@@ -959,14 +990,6 @@ void cumscreentask(void *pvParameters)
 }
 */
 
-void vibrate(){
-    if(vibrate_mode == true){
-    M5.Power.setVibration(255);
-    //M5.Power.Axp192.setLDO3(true);
-    //M5.Power.Axp192.setLDO3(false);
-    M5.Power.setVibration(0);
-    }
-}
 
 void mxclick() {
   vibrate();
