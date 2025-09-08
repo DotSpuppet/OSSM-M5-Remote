@@ -132,7 +132,7 @@ long encoder4_enc = 0;
 
 
 extern float maxdepthinmm = 450.0;
-extern float speedlimit = 600;
+extern float speedlimit = 250;
 int speedscale = -5;
 
 float speed = 0.0;
@@ -461,22 +461,22 @@ void screenmachine(lv_event_t * e)
     speed = lv_slider_get_value(ui_homespeedslider);
     LogDebug(speedenc);
     LogDebug(speed);
-    speedenc =  fscale(0.5, speedlimit, 0, 144, speed, 0);
+    speedenc =  fscale(0.5, speedlimit, 0, Encoder_MAP, speed, 0);
     encoder1.setCount(speedenc); 
     LogDebug(speedenc);
 
     lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
     depth = lv_slider_get_value(ui_homedepthslider);       
-    depthenc =  fscale(0, maxdepthinmm, 0, 144, depth, 0);
+    depthenc =  fscale(0, maxdepthinmm, 0, Encoder_MAP, depth, 0);
     encoder2.setCount(depthenc);
 
     lv_slider_set_range(ui_homestrokeslider, 0, maxdepthinmm);        
     stroke = lv_slider_get_value(ui_homestrokeslider);    
-    strokeenc =  fscale(0, maxdepthinmm, 0, 144, stroke, 0);
+    strokeenc =  fscale(0, maxdepthinmm, 0, Encoder_MAP, stroke, 0);
     encoder3.setCount(strokeenc);
 
     sensation = lv_slider_get_value(ui_homesensationslider);
-    sensationenc =  fscale(-100, 100, (144/2*-1), (144/2), sensation, 0);
+    sensationenc =  fscale(-100, 100, (Encoder_MAP/2*-1), (Encoder_MAP/2), sensation, 0);
     encoder4.setCount(sensationenc);        
             
   } else if (lv_scr_act() == ui_Menue){
@@ -486,11 +486,11 @@ void screenmachine(lv_event_t * e)
   } else if (lv_scr_act() == ui_Torqe){
     st_screens = ST_UI_Torqe;
     torqe_f = lv_slider_get_value(ui_outtroqeslider);
-    torqe_f_enc = fscale(50, 200, 0, 144, torqe_f, 0);
+    torqe_f_enc = fscale(50, 200, 0, Encoder_MAP, torqe_f, 0);
     encoder1.setCount(torqe_f_enc);
 
     torqe_r = lv_slider_get_value(ui_introqeslider);
-    torqe_r_enc = fscale(20, 200, 0, 144, torqe_r, 0);
+    torqe_r_enc = fscale(20, 200, 0, Encoder_MAP, torqe_r, 0);
     encoder4.setCount(torqe_r_enc);
 
   } else if (lv_scr_act() == ui_EJECTSettings){
@@ -937,15 +937,15 @@ void loop()
             lv_slider_set_value(ui_outtroqeslider, torqe_f, LV_ANIM_OFF);
             if(encoder1.getCount() <= 0){
               encoder1.setCount(0);
-            } else if (encoder1.getCount() >= 144){
-              encoder1.setCount(144);
+            } else if (encoder1.getCount() >= Encoder_MAP){
+              encoder1.setCount(Encoder_MAP);
             } 
             torqe_f_enc = encoder1.getCount();
-            torqe_f = fscale(0, 144, 50, 200, torqe_f_enc, 0);
+            torqe_f = fscale(0, Encoder_MAP, 50, 200, torqe_f_enc, 0);
             SendCommand(TORQE_F, torqe_f, OSSM_ID);
           }
         } else if(lv_slider_get_value(ui_outtroqeslider) != torqe_f){
-            torqe_f_enc = fscale(50, 200, 0, 144, torqe_f, 0);
+            torqe_f_enc = fscale(50, 200, 0, Encoder_MAP, torqe_f, 0);
             encoder1.setCount(torqe_f_enc);
             torqe_f = lv_slider_get_value(ui_outtroqeslider);
             SendCommand(TORQE_F, torqe_f, OSSM_ID);
@@ -960,15 +960,15 @@ void loop()
             lv_slider_set_value(ui_introqeslider, torqe_r, LV_ANIM_OFF);
             if(encoder4.getCount() <= 0){
               encoder4.setCount(0);
-            } else if (encoder4.getCount() >= 144){
-              encoder4.setCount(144);
+            } else if (encoder4.getCount() >= Encoder_MAP){
+              encoder4.setCount(Encoder_MAP);
             } 
             torqe_r_enc = encoder4.getCount();
-            torqe_r = fscale(0, 144, 20, 200, torqe_r_enc, 0);
+            torqe_r = fscale(0, Encoder_MAP, 20, 200, torqe_r_enc, 0);
             SendCommand(TORQE_R, torqe_r, OSSM_ID);
           }
         } else if(lv_slider_get_value(ui_introqeslider) != torqe_r){
-            torqe_r_enc = fscale(20, 200, 0, 144, torqe_r, 0);
+            torqe_r_enc = fscale(20, 200, 0, Encoder_MAP, torqe_r, 0);
             encoder4.setCount(torqe_r_enc);
             torqe_r = lv_slider_get_value(ui_introqeslider);
             SendCommand(TORQE_R, torqe_r, OSSM_ID);
