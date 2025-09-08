@@ -132,7 +132,7 @@ long encoder4_enc = 0;
 
 
 extern float maxdepthinmm = 450.0;
-extern float speedlimit = 250;
+extern float speedlimit = 600;
 int speedscale = -5;
 
 float speed = 0.0;
