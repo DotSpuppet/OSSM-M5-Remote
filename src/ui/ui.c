@@ -898,6 +898,7 @@ void ui_Home_screen_init(void)
 
     ui_homestrokeslider = lv_slider_create(ui_StrokeL);
     lv_slider_set_range(ui_homestrokeslider, 0, maxdepthinmm);
+    lv_bar_set_mode(ui_homestrokeslider, LV_BAR_MODE_RANGE);
 
     lv_obj_set_width(ui_homestrokeslider, 130);
     lv_obj_set_height(ui_homestrokeslider, 10);
