@@ -43,6 +43,8 @@ OneButton Button2(36, false); //Encoder Left
 OneButton Button3(34, false, true); //Encoder Right
 #endif
 
+#define Encoder_MAP 144
+
 #define LV_HOR_RES_MAX 320
 #define LV_VER_RES_MAX 240
 
