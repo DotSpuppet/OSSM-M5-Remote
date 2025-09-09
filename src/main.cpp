@@ -638,6 +638,7 @@ void setup(){
 
 void loop()
 {
+     bool changed=false;
      const int BatteryLevel = M5.Power.getBatteryLevel();
      String BatteryValue = (String(BatteryLevel, DEC) + "%");
      const char *battVal = BatteryValue.c_str();
@@ -699,14 +700,17 @@ void loop()
         // Encoder 1 Speed 
         //
         if(lv_slider_is_dragged(ui_homespeedslider) == false){ //if knob gets rotated
+          changed = false;
           lv_slider_set_value(ui_homespeedslider, speed, LV_ANIM_OFF);
 
-		      if (encoder1.getCount() >= 2){      //speed up
+          if (encoder1.getCount() >= 2){      //speed up
+            changed = true;
             speed += rampValue;
             encoder1.setCount(0);
             rampMs = millis();
             encId = 1;
 		      }else if (encoder1.getCount() <= -2){      //speed down
+            changed = true;
             speed -=rampValue;
             encoder1.setCount(0);
             rampMs = millis();
@@ -714,15 +718,19 @@ void loop()
           }
 
           //speed min-max bounds
-          if (speed <= 0){
+          if (speed < 0){
+            changed = true;
             speed = 0;
           }
-          if (speed >= speedlimit){
+          if (speed > speedlimit){
+            changed = true;
             speed = speedlimit;
           }
           
           //send speed
-          SendCommand(SPEED, speed, OSSM_ID);
+          if (changed) {
+            SendCommand(SPEED, speed, OSSM_ID);
+          }
         
         
         }else if (lv_slider_get_value(ui_homespeedslider) != speed){ //if slider moved
@@ -737,9 +745,11 @@ void loop()
         // Encoder 2 Depth 
         //
         if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
+          changed = false;
           lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
 
 		      if (encoder2.getCount() >= 2){      //depth up
+            changed = true;
             depth += rampValue;
             if (dynamicStroke == true){
               stroke += rampValue;
@@ -748,6 +758,7 @@ void loop()
             rampMs = millis();
             encId = 2;
 		      }else if (encoder2.getCount() <= -2){      //depth down
+            changed = true;
             depth -=rampValue;
             if (dynamicStroke == true){
               stroke -= rampValue;
@@ -761,15 +772,19 @@ void loop()
           }
 
           //depth min-max bounds
-          if (depth <= 0){
+          if (depth < 0){
+            changed = true;
             depth = 0;
           }
-          if (depth >= maxdepthinmm){
+          if (depth > maxdepthinmm){
+            changed = true;
             depth = maxdepthinmm;
           }
           
           //send depth
+          if (changed) {
             SendCommand(DEPTH, depth, OSSM_ID);
+          }
         }else if(lv_slider_get_value(ui_homedepthslider) != depth){
             depth = lv_slider_get_value(ui_homedepthslider);
             SendCommand(DEPTH, depth, OSSM_ID);
@@ -782,16 +797,19 @@ void loop()
         // Encoder 3 Stroke 
         //
         if(lv_slider_is_dragged(ui_homestrokeslider) == false){ //if knob gets rotated
+          changed = false;
           lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
           lv_slider_set_value(ui_homestrokeslider, depth, LV_ANIM_OFF);
 
 
 		      if (encoder3.getCount() >= 2){      //Stroke up
+            changed = true;
             stroke -= rampValue;
             encoder3.setCount(0);
             rampMs = millis();
             encId = 3;
 		      }else if (encoder3.getCount() <= -2){      //Stroke down
+            changed = true;
             stroke += rampValue;
             encoder3.setCount(0);
             rampMs = millis();
@@ -799,15 +817,19 @@ void loop()
           }
 
           //Stoke min-max bounds
-          if (stroke <= 0){
+          if (stroke < 0){
+            changed = true;
             stroke = 0;
           }
-          if (stroke >= maxdepthinmm){
+          if (stroke > maxdepthinmm){
+            changed = true;
             stroke = maxdepthinmm;
           }
           
           //send stroke
+          if (changed) {
             SendCommand(STROKE, stroke, OSSM_ID);
+          }
 
         } else if(lv_slider_get_left_value(ui_homestrokeslider) != depth - stroke){
             stroke = depth - lv_slider_get_left_value(ui_homestrokeslider);
@@ -825,14 +847,17 @@ void loop()
         // Encoder4 Sensation
         //
         if(lv_slider_is_dragged(ui_homesensationslider) == false){
+          changed = false;
           lv_slider_set_value(ui_homesensationslider, sensation, LV_ANIM_OFF);
 
 		      if (encoder4.getCount() >= 2){      //Stroke up
+            changed = true;
             sensation += 2;
             encoder4.setCount(0);
             rampMs = millis();
             encId = 4;
 		      }else if (encoder4.getCount() <= -2){      //Stroke down
+            changed = true;
             sensation -= 2;
             encoder4.setCount(0);
             rampMs = millis();
@@ -841,14 +866,18 @@ void loop()
           }
 
           //Stoke min-max bounds
-          if (sensation <= -100){
+          if (sensation < -100){
+            changed = true;
             sensation = -100;
           }
-          if (sensation >= 100){
+          if (sensation > 100){
+            changed = true;
             sensation = 100;
           }
+
+          if (changed) {
             SendCommand(SENSATION, sensation, OSSM_ID);
-          
+          }          
         } else if(lv_slider_get_value(ui_homesensationslider) != sensation){
             sensation = lv_slider_get_value(ui_homesensationslider);
             SendCommand(SENSATION, sensation, OSSM_ID);
@@ -862,6 +891,7 @@ void loop()
          lv_obj_send_event(ui_HomeButtonR, LV_EVENT_CLICKED, NULL);
         } else if(click3_long_waspressed == true){
           sensation = 0;        //reset sensation to zero
+          SendCommand(SENSATION, sensation, OSSM_ID);
         }else if(click3_double_waspressed == true){
           if (dynamicStroke == false){
             dynamicStroke = true;;            /// dynamicStroke = !dynamicStroke; crashes M5 for some reason
