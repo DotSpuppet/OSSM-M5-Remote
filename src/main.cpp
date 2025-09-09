@@ -363,11 +363,13 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     case OFF: 
     {
     OSSM_On = false;
+    lv_label_set_text(ui_HomeButtonMText, "Stopped");
     }
     break;
     case ON:
     {
     OSSM_On = true;
+    lv_label_set_text(ui_HomeButtonMText, "Active");
     }
     break;
     }
@@ -742,22 +744,22 @@ void loop()
         lv_label_set_text(ui_homespeedvalue, speed_v);
 
         //
-        // Encoder 2 Depth 
+        // Encoder 3 Depth 
         //
         if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
           changed = false;
           lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
 
-		      if (encoder2.getCount() >= 2){      //depth up
+		      if (encoder3.getCount() >= 2){      //depth up
             changed = true;
             depth += rampValue;
             if (dynamicStroke == true){
               stroke += rampValue;
             }
-            encoder2.setCount(0);
+            encoder3.setCount(0);
             rampMs = millis();
-            encId = 2;
-		      }else if (encoder2.getCount() <= -2){      //depth down
+            encId = 3;
+		      }else if (encoder3.getCount() <= -2){      //depth down
             changed = true;
             depth -=rampValue;
             if (dynamicStroke == true){
@@ -766,9 +768,9 @@ void loop()
                 stroke = depth;
               }
             }
-            encoder2.setCount(0);
+            encoder3.setCount(0);
             rampMs = millis();
-            encId = 2;
+            encId = 3;
           }
 
           //depth min-max bounds
@@ -794,7 +796,7 @@ void loop()
         lv_label_set_text(ui_homedepthvalue, depth_v);
         
         //
-        // Encoder 3 Stroke 
+        // Encoder 2 Stroke 
         //
         if(lv_slider_is_dragged(ui_homestrokeslider) == false){ //if knob gets rotated
           changed = false;
@@ -802,18 +804,18 @@ void loop()
           lv_slider_set_value(ui_homestrokeslider, depth, LV_ANIM_OFF);
 
 
-		      if (encoder3.getCount() >= 2){      //Stroke up
+		      if (encoder2.getCount() >= 2){      //Stroke up
             changed = true;
             stroke -= rampValue;
-            encoder3.setCount(0);
+            encoder2.setCount(0);
             rampMs = millis();
-            encId = 3;
-		      }else if (encoder3.getCount() <= -2){      //Stroke down
+            encId = 2;
+		      }else if (encoder2.getCount() <= -2){      //Stroke down
             changed = true;
             stroke += rampValue;
-            encoder3.setCount(0);
+            encoder2.setCount(0);
             rampMs = millis();
-            encId = 3;
+            encId = 2;
           }
 
           //Stoke min-max bounds
@@ -835,6 +837,12 @@ void loop()
             stroke = depth - lv_slider_get_left_value(ui_homestrokeslider);
             SendCommand(STROKE, stroke, OSSM_ID);
         } else if(lv_slider_get_value(ui_homestrokeslider) != depth){
+          if(dynamicStroke == false){
+           depth = lv_slider_get_value(ui_homestrokeslider);
+           lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
+          }else{
+            depth = lv_slider_get_value(ui_homestrokeslider);
+		      }
             depth = lv_slider_get_value(ui_homestrokeslider);
             SendCommand(DEPTH, depth, OSSM_ID);
         }

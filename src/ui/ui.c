@@ -729,7 +729,8 @@ void ui_Home_screen_init(void)
 
     lv_obj_set_align(ui_HomeButtonMText, LV_ALIGN_CENTER);
 
-    lv_label_set_text(ui_HomeButtonMText, T_START);
+    lv_label_set_text(ui_HomeButtonMText, "Press to\nstart playing");
+    lv_obj_set_style_text_align(ui_HomeButtonMText, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_set_style_text_color(ui_HomeButtonMText, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_HomeButtonMText, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
