@@ -42,7 +42,7 @@ extern lv_obj_t * ui_SpeedL;
 extern lv_obj_t * ui_homespeedslider;
 extern lv_obj_t * ui_homespeedvalue;
 extern lv_obj_t * ui_DepthL;
-extern lv_obj_t * ui_homedepthslider;
+//extern lv_obj_t * ui_homedepthslider;
 extern lv_obj_t * ui_homedepthvalue;
 extern lv_obj_t * ui_StrokeL;
 extern lv_obj_t * ui_homestrokeslider;

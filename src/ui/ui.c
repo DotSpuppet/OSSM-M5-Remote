@@ -35,7 +35,7 @@ lv_obj_t * ui_SpeedL;
 lv_obj_t * ui_homespeedslider;
 lv_obj_t * ui_homespeedvalue;
 lv_obj_t * ui_DepthL;
-lv_obj_t * ui_homedepthslider;
+//lv_obj_t * ui_homedepthslider;
 lv_obj_t * ui_homedepthvalue;
 lv_obj_t * ui_StrokeL;
 lv_obj_t * ui_homestrokeslider;
@@ -844,26 +844,26 @@ void ui_Home_screen_init(void)
 
     // ui_homedepthslider
 
-    ui_homedepthslider = lv_slider_create(ui_DepthL);
-    lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
+    // ui_homedepthslider = lv_slider_create(ui_DepthL);
+    // lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
 
-    lv_obj_set_width(ui_homedepthslider, 130);
-    lv_obj_set_height(ui_homedepthslider, 10);
+    // lv_obj_set_width(ui_homedepthslider, 130);
+    // lv_obj_set_height(ui_homedepthslider, 10);
 
-    lv_obj_set_x(ui_homedepthslider, -15);
-    lv_obj_set_y(ui_homedepthslider, 0);
+    // lv_obj_set_x(ui_homedepthslider, -15);
+    // lv_obj_set_y(ui_homedepthslider, 0);
 
-    lv_obj_set_align(ui_homedepthslider, LV_ALIGN_RIGHT_MID);
+    // lv_obj_set_align(ui_homedepthslider, LV_ALIGN_RIGHT_MID);
 
-    lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0xD691D0), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0xD691D0), LV_PART_MAIN | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_grad_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
-    lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_KNOB | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_KNOB | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_color(ui_homedepthslider, lv_color_hex(0x83277B), LV_PART_KNOB | LV_STATE_DEFAULT);
+    // lv_obj_set_style_bg_opa(ui_homedepthslider, 255, LV_PART_KNOB | LV_STATE_DEFAULT);
 
     // ui_homedepthvalue
 

@@ -155,7 +155,7 @@ int maxRamp = 8;
 int encId;
 int activeEncId;
 
-bool dynamicStroke = false;
+bool dynamicStroke = true;
 
 ESP32Encoder encoder1;
 ESP32Encoder encoder2;
@@ -467,8 +467,8 @@ void screenmachine(lv_event_t * e)
     encoder1.setCount(speedenc); 
     LogDebug(speedenc);
 
-    lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
-    depth = lv_slider_get_value(ui_homedepthslider);       
+    // lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
+    // depth = lv_slider_get_value(ui_homedepthslider);       
     depthenc =  fscale(0, maxdepthinmm, 0, Encoder_MAP, depth, 0);
     encoder2.setCount(depthenc);
 
@@ -746,9 +746,9 @@ void loop()
         //
         // Encoder 3 Depth 
         //
-        if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
+        //if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
           changed = false;
-          lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
+          /// lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
 
 		      if (encoder3.getCount() >= 2){      //depth up
             changed = true;
@@ -786,11 +786,15 @@ void loop()
           //send depth
           if (changed) {
             SendCommand(DEPTH, depth, OSSM_ID);
+            if (dynamicStroke == true){
+              vTaskDelay(10);
+            SendCommand(STROKE, stroke, OSSM_ID);
+            }
           }
-        }else if(lv_slider_get_value(ui_homedepthslider) != depth){
-            depth = lv_slider_get_value(ui_homedepthslider);
-            SendCommand(DEPTH, depth, OSSM_ID);
-        }
+        // }else if(lv_slider_get_value(ui_homedepthslider) != depth){
+        //     depth = lv_slider_get_value(ui_homedepthslider);
+        //     SendCommand(DEPTH, depth, OSSM_ID);
+        // }
         char depth_v[7];
         dtostrf(depth, 6, 0, depth_v);
         lv_label_set_text(ui_homedepthvalue, depth_v);
