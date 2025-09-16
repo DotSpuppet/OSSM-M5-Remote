@@ -57,7 +57,7 @@ int st_screens = ST_UI_START;
 
 
 
-// Menü States
+// Menu States
 
 #define CONNECT 0
 #define HOME 1
@@ -79,6 +79,7 @@ bool dark_mode = false;
 bool vibrate_mode = true;
 bool touch_home = false;
 bool touch_disabled = false;
+bool ena_Sound = false;
 
 // Command States
 #define CONN 0
@@ -129,11 +130,21 @@ long cum_s_enc = 0;
 long cum_a_enc = 0;
 long encoder4_enc = 0;
 
+int encSpeed  = 1;
+int encDepth  = 3;
+int encStroke = 2;
+int encSense  = 4;
 
+int changeSpeed;
+int changeDepth;
+int changeStroke;
+int changeSense;
 
 extern float maxdepthinmm = 450.0;
 extern float speedlimit = 600;
 int speedscale = -5;
+
+int BatteryLevel;
 
 float speed = 0.0;
 float depth = 0.0;
@@ -225,11 +236,17 @@ int64_t touchmenue();
 
 // Makes vibration motor go Brrrrr
 void vibrate(int vbr_Intensity = 200, int vbr_Length = 100){
-    if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 1){
-      M5.Power.setVibration(vbr_Intensity);
-      vTaskDelay(vbr_Length);
-      M5.Power.setVibration(0);
-    }
+  if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 1){
+    M5.Power.setVibration(vbr_Intensity);
+    vTaskDelay(vbr_Length);
+    M5.Power.setVibration(0);
+  }
+}
+
+void playsound(int snd_tone = 1000, int snd_length = 75){
+  if(ena_Sound == true){
+    M5.Speaker.tone(snd_tone, snd_length); //Play Slidewhistle tone
+  }
 }
 
 void mxclick();
@@ -344,6 +361,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     speedlimit = incomingcontrol.esp_speed);
     LogDebug(speedlimit);
     maxdepthinmm = incomingcontrol.esp_depth;
+    lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
+    lv_slider_set_range(ui_homestrokeslider, 0, maxdepthinmm);
     LogDebug(maxdepthinmm);
     pattern = incomingcontrol.esp_pattern;
     LogDebug(pattern);
@@ -359,25 +378,23 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     }
   }
   switch(incomingcontrol.esp_command)
-    {
+  {
     case OFF: 
     {
     OSSM_On = false;
-    lv_label_set_text(ui_HomeButtonMText, "Stopped");
     }
     break;
     case ON:
     {
     OSSM_On = true;
-    lv_label_set_text(ui_HomeButtonMText, "Active");
     }
     break;
-    }
+  }
 }
 
 //Sends Commands and Value to Remote device returns ture or false if sended
 bool SendCommand(int Command, float Value, int Target){
-  
+
   if(Ossm_paired == true){
 
     outgoingcontrol.esp_connected = true;
@@ -399,17 +416,16 @@ bool SendCommand(int Command, float Value, int Target){
 
 void connectbutton(lv_event_t * e)
 {
-    if(!Ossm_paired){
-      outgoingcontrol.esp_command = HEARTBEAT;
-      outgoingcontrol.esp_heartbeat = true;
-      outgoingcontrol.esp_target = OSSM_ID;
-      esp_err_t result = esp_now_send(OSSM_Address, (uint8_t *) &outgoingcontrol, sizeof(outgoingcontrol));
-    }
+  if(!Ossm_paired){
+    outgoingcontrol.esp_command = HEARTBEAT;
+    outgoingcontrol.esp_heartbeat = true;
+    outgoingcontrol.esp_target = OSSM_ID;
+    esp_err_t result = esp_now_send(OSSM_Address, (uint8_t *) &outgoingcontrol, sizeof(outgoingcontrol));
+  }
 }
 
 void savesettings(lv_event_t * e)
 {
-
   m5prf.begin("m5-ctnr", false); //open NVS-storage container/session. False means that it's used it in read+write mode. Set true to open or create the namespace in read-only mode.
 
   if(lv_obj_has_state(ui_vibrate, LV_STATE_CHECKED) == 1){
@@ -459,28 +475,7 @@ void screenmachine(lv_event_t * e)
   if (lv_scr_act() == ui_Start){
     st_screens = ST_UI_START;
   } else if (lv_scr_act() == ui_Home){
-    st_screens = ST_UI_HOME;
-    speed = lv_slider_get_value(ui_homespeedslider);
-    LogDebug(speedenc);
-    LogDebug(speed);
-    speedenc =  fscale(0.5, speedlimit, 0, Encoder_MAP, speed, 0);
-    encoder1.setCount(speedenc); 
-    LogDebug(speedenc);
-
-    // lv_slider_set_range(ui_homedepthslider, 0, maxdepthinmm);
-    // depth = lv_slider_get_value(ui_homedepthslider);       
-    depthenc =  fscale(0, maxdepthinmm, 0, Encoder_MAP, depth, 0);
-    encoder2.setCount(depthenc);
-
-    lv_slider_set_range(ui_homestrokeslider, 0, maxdepthinmm);        
-    stroke = lv_slider_get_value(ui_homestrokeslider);    
-    strokeenc =  fscale(0, maxdepthinmm, 0, Encoder_MAP, stroke, 0);
-    encoder3.setCount(strokeenc);
-
-    sensation = lv_slider_get_value(ui_homesensationslider);
-    sensationenc =  fscale(-100, 100, (Encoder_MAP/2*-1), (Encoder_MAP/2), sensation, 0);
-    encoder4.setCount(sensationenc);        
-            
+    st_screens = ST_UI_HOME;            
   } else if (lv_scr_act() == ui_Menue){
     st_screens = ST_UI_MENUE;
   } else if (lv_scr_act() == ui_Pattern){
@@ -525,8 +520,10 @@ void homebuttonmevent(lv_event_t * e){
   LogDebug("HomeButton");
   if(OSSM_On == false){
     SendCommand(ON, 0.0, OSSM_ID);
+    lv_label_set_text(ui_HomeButtonMText, "Active");
   } else if(OSSM_On == true){
     SendCommand(OFF, 0.0, OSSM_ID);
+    lv_label_set_text(ui_HomeButtonMText, "Stopped");
   }
 }
 
@@ -547,7 +544,7 @@ void setup(){
     eject_status = m5prf.getBool("ejectAddon", false); //boolean here is used if key does not exist yet
     dark_mode = m5prf.getBool("Darkmode", true);       // ^ (basically first boot defaults, saving settings surives a re-flash!)
     vibrate_mode = m5prf.getBool("Vibrate", true);
-    touch_home= m5prf.getBool("Lefty", false);       // = touchcreen. There apears to be no actual lefthanded mode anywhere
+    touch_home= m5prf.getBool("Touch", false);       // = touchcreen. enabled = DISABLED.
   m5prf.end();
 
   M5.Power.setChargeCurrent(BATTERY_CHARGE_CURRENT);
@@ -634,448 +631,514 @@ void setup(){
   lv_roller_set_selected(ui_PatternS,2,LV_ANIM_OFF);
   lv_roller_get_selected_str(ui_PatternS,patternstr,0);
   lv_label_set_text(ui_HomePatternLabel,patternstr);
-
-
 }
 
-void loop()
-{
-     bool changed=false;
-     const int BatteryLevel = M5.Power.getBatteryLevel();
-     String BatteryValue = (String(BatteryLevel, DEC) + "%");
-     const char *battVal = BatteryValue.c_str();
-     lv_bar_set_value(ui_Battery, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue, battVal);
-     lv_bar_set_value(ui_Battery1, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue1, battVal);
-     lv_bar_set_value(ui_Battery2, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue2, battVal);
-     lv_bar_set_value(ui_Battery3, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue3, battVal);
-     lv_bar_set_value(ui_Battery4, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue4, battVal);
-     lv_bar_set_value(ui_Battery5, BatteryLevel, LV_ANIM_OFF);
-     lv_label_set_text(ui_BattValue5, battVal);
+void loop() {
+  bool changed = false;
 
-     M5.update();
-     lv_task_handler();
-     Button1.tick();
-     Button2.tick();
-     Button3.tick();
+  if (BatteryLevel != M5.Power.getBatteryLevel()){ 
+    BatteryLevel = M5.Power.getBatteryLevel();
+    String BatteryValue = (String(BatteryLevel, DEC) + "%");
+    const char *battVal = BatteryValue.c_str();
+    lv_bar_set_value(ui_Battery, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue, battVal);
+    lv_bar_set_value(ui_Battery1, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue1, battVal);
+    lv_bar_set_value(ui_Battery2, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue2, battVal);
+    lv_bar_set_value(ui_Battery3, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue3, battVal);
+    lv_bar_set_value(ui_Battery4, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue4, battVal);
+    lv_bar_set_value(ui_Battery5, BatteryLevel, LV_ANIM_OFF);
+    lv_label_set_text(ui_BattValue5, battVal);
+  }
 
-     switch(st_screens){
-      
-     case ST_UI_START: //Menu With logo after boot
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
-        }
+  M5.update();
+  lv_task_handler();
+  Button1.tick();
+  Button2.tick();
+  Button3.tick();
 
-        if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_StartButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_StartButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(ui_StartButtonR, LV_EVENT_CLICKED, NULL);
-        }
+  switch(st_screens){
+  
+    case ST_UI_START: //Menu With logo after boot
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
       }
-      break;
 
-      case ST_UI_HOME: //Menu with OSSM control sliders
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
+      if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_StartButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_StartButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(ui_StartButtonR, LV_EVENT_CLICKED, NULL);
+      }
+    }
+    break;
+
+    case ST_UI_HOME: //Menu with OSSM control sliders
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
+      }
+
+      //RampHelper
+      nowMs = millis();
+      if (nowMs - rampMs <= rampTime && rampEnabled == true){ 
+        if (rampValue <= maxRamp && encId == activeEncId){
+          ++rampValue;
+        }
+      }else{
+        rampValue = 1;
+        activeEncId = encId;
+      }
+
+
+      // Encoder 1
+      if (encoder1.getCount() >= 2){	
+        if (encSpeed  == 1){changeSpeed  = 2;}else
+        if (encDepth  == 1){changeDepth  = 2;}else
+        if (encStroke == 1){changeStroke = 2;}else
+        if (encSense  == 1){changeSense  = 2;}
+        encoder1.setCount(0);
+      }
+
+      if (encoder1.getCount() <= -2){	
+        if (encSpeed  == 1){changeSpeed  = -2;}else
+        if (encDepth  == 1){changeDepth  = -2;}else
+        if (encStroke == 1){changeStroke = -2;}else
+        if (encSense  == 1){changeSense  = -2;}
+        encoder1.setCount(0);
+      }
+
+      // Encoder 2
+      if (encoder2.getCount() >= 2){
+        if (encSpeed  == 2){changeSpeed  = 2;}else 
+        if (encDepth  == 2){changeDepth  = 2;}else
+        if (encStroke == 2){changeStroke = 2;}else
+        if (encSense  == 2){changeSense  = 2;}
+        encoder2.setCount(0);
+      }
+      if (encoder2.getCount() <= -2){	
+        if (encSpeed  == 2){changeSpeed  = -2;}else
+        if (encDepth  == 2){changeDepth  = -2;}else
+        if (encStroke == 2){changeStroke = -2;}else
+        if (encSense  == 2){changeSense  = -2;}
+        encoder2.setCount(0);
+      }
+
+      // Encoder 3
+      if (encoder3.getCount() >= 2){
+        if (encSpeed  == 3){changeSpeed  = 2;}else
+        if (encDepth  == 3){changeDepth  = 2;}else
+        if (encStroke == 3){changeStroke = 2;}else
+        if (encSense  == 3){changeStroke = 2;}
+        encoder3.setCount(0);
+      }
+
+      if (encoder3.getCount() <= -2){
+        if (encSpeed  == 3){changeSpeed  = -2;}else 
+        if (encDepth  == 3){changeDepth  = -2;}else
+        if (encStroke == 3){changeStroke = -2;}else
+        if (encSense  == 3){changeSense = -2;}
+        encoder3.setCount(0);
+      }
+
+      // Encoder 4
+      if (encoder4.getCount() >= 2){	
+        if (encSpeed  == 4){changeSpeed  = 2;}else 
+        if (encDepth  == 4){changeDepth  = 2;}else
+        if (encStroke == 4){changeStroke = 2;}else
+        if (encSense  == 4){changeSense = 2;}
+        encoder4.setCount(0);
         }
 
-          //RampHelper
-          nowMs = millis();
-          if (nowMs - rampMs <= rampTime && rampEnabled == true){ 
-              if (rampValue <= maxRamp && encId == activeEncId){
-            				++rampValue;
-              }
-          }else{
-          rampValue = 1;
-          activeEncId = encId;
-          }
+      if (encoder4.getCount() <= -2){
+        if (encSpeed  == 4){changeSpeed  = -2;}else 
+        if (encDepth  == 4){changeDepth  = -2;}else
+        if (encStroke == 4){changeStroke = -2;}else
+        if (encSense  == 4){changeSense = -2;}
+        encoder4.setCount(0);
+      }
 
-        //
-        // Encoder 1 Speed 
-        //
-        if(lv_slider_is_dragged(ui_homespeedslider) == false){ //if knob gets rotated
-          changed = false;
-          lv_slider_set_value(ui_homespeedslider, speed, LV_ANIM_OFF);
 
-          if (encoder1.getCount() >= 2){      //speed up
-            changed = true;
-            speed += rampValue;
-            encoder1.setCount(0);
-            rampMs = millis();
-            encId = 1;
-		      }else if (encoder1.getCount() <= -2){      //speed down
-            changed = true;
-            speed -=rampValue;
-            encoder1.setCount(0);
-            rampMs = millis();
-            encId = 1;
-          }
 
-          //speed min-max bounds
-          if (speed < 0){
-            changed = true;
-            speed = 0;
-          }
-          if (speed > speedlimit){
-            changed = true;
-            speed = speedlimit;
-          }
+      // Change Speed
+      if(lv_slider_is_dragged(ui_homespeedslider) == false){ //if knob gets rotated
+        changed = false;
+        lv_slider_set_value(ui_homespeedslider, speed, LV_ANIM_OFF);
+        if (changeSpeed >= 2){
+          changed = true;
+          speed += rampValue;
+          changeSpeed = 0;
+          rampMs = millis();
+          encId = 1;
+        }else if (changeSpeed <= -2){
+          changed = true;
+          speed -=rampValue;
+          changeSpeed = 0;
+          rampMs = millis();
+          encId = 1;
+        }
+
+        //speed min-max bounds
+        if (speed < 0){
+          changed = true;
+          speed = 0;
+        }
+        if (speed > speedlimit){
+          changed = true;
+          speed = speedlimit;
+        }
           
-          //send speed
-          if (changed) {
-            SendCommand(SPEED, speed, OSSM_ID);
-          }
-        
-        
-        }else if (lv_slider_get_value(ui_homespeedslider) != speed){ //if slider moved
-            speed = lv_slider_get_value(ui_homespeedslider);
-            SendCommand(SPEED, speed, OSSM_ID);
-        }
-        char speed_v[7];
-        dtostrf(speed, 6, 0, speed_v);
-        lv_label_set_text(ui_homespeedvalue, speed_v);
-
-        //
-        // Encoder 3 Depth 
-        //
-        //if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
+        //send speed
+        if (changed) {
+          SendCommand(SPEED, speed, OSSM_ID);
           changed = false;
-          /// lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
+        }
+    
+      //if Speed slider moved
+      }else if (lv_slider_get_value(ui_homespeedslider) != speed){ 
+        speed = lv_slider_get_value(ui_homespeedslider);
+        SendCommand(SPEED, speed, OSSM_ID);
+      }
+      char speed_v[7];
+      dtostrf(speed, 6, 0, speed_v);
+      lv_label_set_text(ui_homespeedvalue, speed_v);
 
-		      if (encoder3.getCount() >= 2){      //depth up
-            changed = true;
-            depth += rampValue;
-            if (dynamicStroke == true){
-              stroke += rampValue;
-            }
-            encoder3.setCount(0);
-            rampMs = millis();
-            encId = 3;
-		      }else if (encoder3.getCount() <= -2){      //depth down
-            changed = true;
-            depth -=rampValue;
-            if (dynamicStroke == true){
-              stroke -= rampValue;
-              if(stroke >= depth){
-                stroke = depth;
-              }
-            }
-            encoder3.setCount(0);
-            rampMs = millis();
-            encId = 3;
-          }
 
-          //depth min-max bounds
-          if (depth < 0){
-            changed = true;
-            depth = 0;
+
+      // Change Depth
+      if(lv_slider_is_dragged(ui_homedepthslider) == false){ //if knob gets rotated
+        changed = false;
+        lv_slider_set_value(ui_homedepthslider, depth, LV_ANIM_OFF);
+        if (changeDepth >= 2){      //depth up
+          changed = true;
+          depth += rampValue;
+          if (dynamicStroke == true){
+            stroke += rampValue;
           }
-          if (depth > maxdepthinmm){
+          changeDepth = 0;
+          rampMs = millis();
+          encId = 3;
+        }else if (changeDepth <= -2){      //depth down
+          changed = true;
+          depth -=rampValue;
+          if (dynamicStroke == true){
+            stroke -= rampValue;
+            if(stroke >= depth){
+              stroke = depth;
+            }
+          }
+          changeDepth = 0;
+          rampMs = millis();
+          encId = 3;
+        }
+
+        //depth min-max bounds
+        if (depth < 0){
+          changed = true;
+          depth = 0;
+        }
+        if (depth > maxdepthinmm){
             changed = true;
             depth = maxdepthinmm;
-          }
-          
-          //send depth
-          if (changed) {
-            SendCommand(DEPTH, depth, OSSM_ID);
-            if (dynamicStroke == true){
-              vTaskDelay(10);
-            SendCommand(STROKE, stroke, OSSM_ID);
-            }
-          }
-        // }else if(lv_slider_get_value(ui_homedepthslider) != depth){
-        //     depth = lv_slider_get_value(ui_homedepthslider);
-        //     SendCommand(DEPTH, depth, OSSM_ID);
-        // }
-        char depth_v[7];
-        dtostrf(depth, 6, 0, depth_v);
-        lv_label_set_text(ui_homedepthvalue, depth_v);
-        
-        //
-        // Encoder 2 Stroke 
-        //
-        if(lv_slider_is_dragged(ui_homestrokeslider) == false){ //if knob gets rotated
-          changed = false;
-          lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
-          lv_slider_set_value(ui_homestrokeslider, depth, LV_ANIM_OFF);
-
-
-		      if (encoder2.getCount() >= 2){      //Stroke up
-            changed = true;
-            stroke -= rampValue;
-            encoder2.setCount(0);
-            rampMs = millis();
-            encId = 2;
-		      }else if (encoder2.getCount() <= -2){      //Stroke down
-            changed = true;
-            stroke += rampValue;
-            encoder2.setCount(0);
-            rampMs = millis();
-            encId = 2;
-          }
-
-          //Stoke min-max bounds
-          if (stroke < 0){
-            changed = true;
-            stroke = 0;
-          }
-          if (stroke > maxdepthinmm){
-            changed = true;
-            stroke = maxdepthinmm;
-          }
-          
-          //send stroke
-          if (changed) {
-            SendCommand(STROKE, stroke, OSSM_ID);
-          }
-
-        } else if(lv_slider_get_left_value(ui_homestrokeslider) != depth - stroke){
-            stroke = depth - lv_slider_get_left_value(ui_homestrokeslider);
-            SendCommand(STROKE, stroke, OSSM_ID);
-        } else if(lv_slider_get_value(ui_homestrokeslider) != depth){
-          if(dynamicStroke == false){
-           depth = lv_slider_get_value(ui_homestrokeslider);
-           lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
-          }else{
-            depth = lv_slider_get_value(ui_homestrokeslider);
-		      }
-            depth = lv_slider_get_value(ui_homestrokeslider);
-            SendCommand(DEPTH, depth, OSSM_ID);
         }
-
-        char stroke_v[7];
-        dtostrf(stroke, 6, 0, stroke_v);
-        lv_label_set_text(ui_homestrokevalue, stroke_v);  //was lv_label_set_text(ui_homestrokevalue, stroke_v);
-
-        //
-        // Encoder4 Sensation
-        //
-        if(lv_slider_is_dragged(ui_homesensationslider) == false){
+          
+        //send depth
+        if (changed) {
+          SendCommand(DEPTH, depth, OSSM_ID);
           changed = false;
-          lv_slider_set_value(ui_homesensationslider, sensation, LV_ANIM_OFF);
-
-		      if (encoder4.getCount() >= 2){      //Stroke up
-            changed = true;
-            sensation += 2;
-            encoder4.setCount(0);
-            rampMs = millis();
-            encId = 4;
-		      }else if (encoder4.getCount() <= -2){      //Stroke down
-            changed = true;
-            sensation -= 2;
-            encoder4.setCount(0);
-            rampMs = millis();
-            encId = 4;
+        }
+      
+        // If Depth slider moved
+      }else if(lv_slider_get_value(ui_homedepthslider) != depth){
+        depth = lv_slider_get_value(ui_homedepthslider);
+        SendCommand(DEPTH, depth, OSSM_ID);
+      }
+      char depth_v[7];
+      dtostrf(depth, 6, 0, depth_v);
+      lv_label_set_text(ui_homedepthvalue, depth_v);
             
-          }
 
-          //Stoke min-max bounds
-          if (sensation < -100){
-            changed = true;
-            sensation = -100;
-          }
-          if (sensation > 100){
-            changed = true;
-            sensation = 100;
-          }
-
-          if (changed) {
-            SendCommand(SENSATION, sensation, OSSM_ID);
-          }          
-        } else if(lv_slider_get_value(ui_homesensationslider) != sensation){
-            sensation = lv_slider_get_value(ui_homesensationslider);
-            SendCommand(SENSATION, sensation, OSSM_ID);
-        }
-
-        if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_HomeButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_HomeButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(ui_HomeButtonR, LV_EVENT_CLICKED, NULL);
-        } else if(click3_long_waspressed == true){
-          sensation = 0;        //reset sensation to zero
-          SendCommand(SENSATION, sensation, OSSM_ID);
-        }else if(click3_double_waspressed == true){
-          if (dynamicStroke == false){
-            dynamicStroke = true;;            /// dynamicStroke = !dynamicStroke; crashes M5 for some reason
-          }else{
-            dynamicStroke = false;;
-          }
-          if (stroke >= depth){
-            stroke = depth;
-          }
-        }
+      // Change Stroke
+      if(lv_slider_is_dragged(ui_homestrokeslider) == false){ //if knob gets rotated
+      changed = false;
+      lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
+      lv_slider_set_value(ui_homestrokeslider, depth, LV_ANIM_OFF);
+      if (changeStroke >= 2){
+        changed = true;
+        stroke -= rampValue;
+        changeStroke = 0;
+        rampMs = millis();
+        encId = 2;
+      }else if (changeStroke <= -2){
+        changed = true;
+        stroke += rampValue;
+        changeStroke = 0;
+        rampMs = millis();
+        encId = 2;
       }
-      break;
-
-      case ST_UI_MENUE:
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
-        }
-        if(encoder4.getCount() > encoder4_enc + 2){
-          LogDebug("next");
-          lv_group_focus_next(ui_g_menue);
-          encoder4_enc = encoder4.getCount();
-        } else if(encoder4.getCount() < encoder4_enc -2){
-          lv_group_focus_prev(ui_g_menue);
-          LogDebug("Preview");
-          encoder4_enc = encoder4.getCount();
-        }
-
-        if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_MenueButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_MenueButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(lv_group_get_focused(ui_g_menue), LV_EVENT_CLICKED, NULL);
-        }
+      if(stroke >= depth){
+        stroke = depth;
       }
-      break;
 
-      case ST_UI_PATTERN:
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
-        }
-        if(encoder4.getCount() > encoder4_enc + 2){
-          LogDebug("next");
-          uint32_t t = LV_KEY_DOWN;
-          lv_obj_send_event(ui_PatternS, LV_EVENT_KEY, &t);
-          encoder4_enc = encoder4.getCount();
-        } else if(encoder4.getCount() < encoder4_enc -2){
-          uint32_t t = LV_KEY_UP;
-          lv_obj_send_event(ui_PatternS, LV_EVENT_KEY, &t);
-          LogDebug("Preview");
-          encoder4_enc = encoder4.getCount();
-        }
-         if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_PatternButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_PatternButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(ui_PatternButtonR, LV_EVENT_CLICKED, NULL);
-        }
+      //Stoke min-max bounds
+      if (stroke < 0){
+        changed = true;
+        stroke = 0;
       }
-      break;
-
-      case ST_UI_Torqe:
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
-        }
-        // Encoder 1 Torqe Out
-        if(lv_slider_is_dragged(ui_outtroqeslider) == false){
-          if (encoder1.getCount() != torqe_f_enc){
-            lv_slider_set_value(ui_outtroqeslider, torqe_f, LV_ANIM_OFF);
-            if(encoder1.getCount() <= 0){
-              encoder1.setCount(0);
-            } else if (encoder1.getCount() >= Encoder_MAP){
-              encoder1.setCount(Encoder_MAP);
-            } 
-            torqe_f_enc = encoder1.getCount();
-            torqe_f = fscale(0, Encoder_MAP, 50, 200, torqe_f_enc, 0);
-            SendCommand(TORQE_F, torqe_f, OSSM_ID);
-          }
-        } else if(lv_slider_get_value(ui_outtroqeslider) != torqe_f){
-            torqe_f_enc = fscale(50, 200, 0, Encoder_MAP, torqe_f, 0);
-            encoder1.setCount(torqe_f_enc);
-            torqe_f = lv_slider_get_value(ui_outtroqeslider);
-            SendCommand(TORQE_F, torqe_f, OSSM_ID);
-        }
-        char torqe_f_v[7];
-        dtostrf((torqe_f*-1), 6, 0, torqe_f_v);
-        lv_label_set_text(ui_outtroqevalue, torqe_f_v);
-
-        // Encoder 4 Torqe IN
-        if(lv_slider_is_dragged(ui_introqeslider) == false){
-          if (encoder4.getCount() != torqe_r_enc){
-            lv_slider_set_value(ui_introqeslider, torqe_r, LV_ANIM_OFF);
-            if(encoder4.getCount() <= 0){
-              encoder4.setCount(0);
-            } else if (encoder4.getCount() >= Encoder_MAP){
-              encoder4.setCount(Encoder_MAP);
-            } 
-            torqe_r_enc = encoder4.getCount();
-            torqe_r = fscale(0, Encoder_MAP, 20, 200, torqe_r_enc, 0);
-            SendCommand(TORQE_R, torqe_r, OSSM_ID);
-          }
-        } else if(lv_slider_get_value(ui_introqeslider) != torqe_r){
-            torqe_r_enc = fscale(20, 200, 0, Encoder_MAP, torqe_r, 0);
-            encoder4.setCount(torqe_r_enc);
-            torqe_r = lv_slider_get_value(ui_introqeslider);
-            SendCommand(TORQE_R, torqe_r, OSSM_ID);
-        }
-        char torqe_r_v[7];
-        dtostrf(torqe_r, 6, 0, torqe_r_v);
-        lv_label_set_text(ui_introqevalue, torqe_r_v);
-
-         if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_TorqeButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_TorqeButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(ui_TorqeButtonR, LV_EVENT_CLICKED, NULL);
-        }
+      if (stroke > maxdepthinmm){
+        changed = true;
+        stroke = maxdepthinmm;
       }
-      break;
+      
+      //send stroke
+      if (changed) {
+        SendCommand(STROKE, stroke, OSSM_ID);
+        lv_bar_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
+        lv_slider_set_value(ui_homestrokeslider, depth, LV_ANIM_OFF);
+        changed = false;
+      }
 
-      case ST_UI_EJECTSETTINGS:
-      {
-        if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
-          touch_disabled = true;
-        }
+      }else if(lv_slider_get_left_value(ui_homestrokeslider) != depth - stroke){
+        stroke = depth - lv_slider_get_left_value(ui_homestrokeslider);
+        SendCommand(STROKE, stroke, OSSM_ID);
+      } else if(lv_slider_get_value(ui_homestrokeslider) != depth){
+        if(dynamicStroke == false){
+        depth = lv_slider_get_value(ui_homestrokeslider);
+        lv_slider_set_start_value(ui_homestrokeslider, depth - stroke, LV_ANIM_OFF);
+      }else{
+        depth = lv_slider_get_value(ui_homestrokeslider);
+      }
+        depth = lv_slider_get_value(ui_homestrokeslider);
+        SendCommand(DEPTH, depth, OSSM_ID);
+      }
+
+      char stroke_v[7];
+      dtostrf(stroke, 6, 0, stroke_v);
+      lv_label_set_text(ui_homestrokevalue, stroke_v);  //was lv_label_set_text(ui_homestrokevalue, stroke_v);
+
+
+
+
+      // Change Sensation
+      changed = false;
+      if (changeSense >= 2){
+        changed = true;
+        sensation += 2;
+        changeSense = 0;
+        rampMs = millis();
+        encId = 4;
+      }else if (changeSense <= -2){
+        changed = true;
+        sensation -= 2;
+        changeSense = 0;
+        rampMs = millis();
+        encId = 4;
         
-         if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_EJECTButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_EJECTButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         
+      }
+
+      //Stoke min-max bounds
+      if (sensation < -100){
+        changed = true;
+        sensation = -100;
+      }
+      if (sensation > 100){
+        changed = true;
+        sensation = 100;
+      }
+
+      if (changed) {
+        SendCommand(SENSATION, sensation, OSSM_ID);
+        lv_slider_set_value(ui_homesensationslider, sensation, LV_ANIM_OFF);
+        changed = false;
+      }
+      // if Sensation slider is moved
+      if(lv_slider_get_value(ui_homesensationslider) != sensation){
+          sensation = lv_slider_get_value(ui_homesensationslider);
+          SendCommand(SENSATION, sensation, OSSM_ID);
+      }
+
+      if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_HomeButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_HomeButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(ui_HomeButtonR, LV_EVENT_CLICKED, NULL);
+      } else if(click3_long_waspressed == true){
+        sensation = 0;        //reset sensation to zero
+        SendCommand(SENSATION, sensation, OSSM_ID);
+      }else if(click3_double_waspressed == true){
+        dynamicStroke = !dynamicStroke;
+        if (stroke >= depth){
+          stroke = depth;
         }
       }
-      break;
+    }
+    break;
 
-      case ST_UI_SETTINGS: //Settings Menu
-      {
-        touch_disabled = false;
+    case ST_UI_MENUE:
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
+      }
+      if(encoder4.getCount() > encoder4_enc + 2){
+        LogDebug("next");
+        lv_group_focus_next(ui_g_menue);
+        encoder4_enc = encoder4.getCount();
+      } else if(encoder4.getCount() < encoder4_enc -2){
+        lv_group_focus_prev(ui_g_menue);
+        LogDebug("Preview");
+        encoder4_enc = encoder4.getCount();
+      }
 
-        if(encoder4.getCount() > encoder4_enc + 2){
-          LogDebug("next");
-          lv_group_focus_next(ui_g_settings);
-          encoder4_enc = encoder4.getCount();
-        } else if(encoder4.getCount() < encoder4_enc -2){
-          lv_group_focus_prev(ui_g_settings);
-          LogDebug("Preview");
-          encoder4_enc = encoder4.getCount();
+      if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_MenueButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_MenueButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(lv_group_get_focused(ui_g_menue), LV_EVENT_CLICKED, NULL);
+      }
+    }
+    break;
+
+    case ST_UI_PATTERN:
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
+      }
+      if(encoder4.getCount() > encoder4_enc + 2){
+        LogDebug("next");
+        uint32_t t = LV_KEY_DOWN;
+        lv_obj_send_event(ui_PatternS, LV_EVENT_KEY, &t);
+        encoder4_enc = encoder4.getCount();
+      } else if(encoder4.getCount() < encoder4_enc -2){
+        uint32_t t = LV_KEY_UP;
+        lv_obj_send_event(ui_PatternS, LV_EVENT_KEY, &t);
+        LogDebug("Preview");
+        encoder4_enc = encoder4.getCount();
+      }
+        if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_PatternButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_PatternButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(ui_PatternButtonR, LV_EVENT_CLICKED, NULL);
+      }
+    }
+    break;
+
+    case ST_UI_Torqe:
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
+      }
+      // Encoder 1 Torqe Out
+      if(lv_slider_is_dragged(ui_outtroqeslider) == false){
+        if (encoder1.getCount() != torqe_f_enc){
+          lv_slider_set_value(ui_outtroqeslider, torqe_f, LV_ANIM_OFF);
+          if(encoder1.getCount() <= 0){
+            encoder1.setCount(0);
+          } else if (encoder1.getCount() >= Encoder_MAP){
+            encoder1.setCount(Encoder_MAP);
+          } 
+          torqe_f_enc = encoder1.getCount();
+          torqe_f = fscale(0, Encoder_MAP, 50, 200, torqe_f_enc, 0);
+          SendCommand(TORQE_F, torqe_f, OSSM_ID);
         }
+      } else if(lv_slider_get_value(ui_outtroqeslider) != torqe_f){
+          torqe_f_enc = fscale(50, 200, 0, Encoder_MAP, torqe_f, 0);
+          encoder1.setCount(torqe_f_enc);
+          torqe_f = lv_slider_get_value(ui_outtroqeslider);
+          SendCommand(TORQE_F, torqe_f, OSSM_ID);
+      }
+      char torqe_f_v[7];
+      dtostrf((torqe_f*-1), 6, 0, torqe_f_v);
+      lv_label_set_text(ui_outtroqevalue, torqe_f_v);
+
+      // Encoder 4 Torqe IN
+      if(lv_slider_is_dragged(ui_introqeslider) == false){
+        if (encoder4.getCount() != torqe_r_enc){
+          lv_slider_set_value(ui_introqeslider, torqe_r, LV_ANIM_OFF);
+          if(encoder4.getCount() <= 0){
+            encoder4.setCount(0);
+          } else if (encoder4.getCount() >= Encoder_MAP){
+            encoder4.setCount(Encoder_MAP);
+          } 
+          torqe_r_enc = encoder4.getCount();
+          torqe_r = fscale(0, Encoder_MAP, 20, 200, torqe_r_enc, 0);
+          SendCommand(TORQE_R, torqe_r, OSSM_ID);
+        }
+      } else if(lv_slider_get_value(ui_introqeslider) != torqe_r){
+          torqe_r_enc = fscale(20, 200, 0, Encoder_MAP, torqe_r, 0);
+          encoder4.setCount(torqe_r_enc);
+          torqe_r = lv_slider_get_value(ui_introqeslider);
+          SendCommand(TORQE_R, torqe_r, OSSM_ID);
+      }
+      char torqe_r_v[7];
+      dtostrf(torqe_r, 6, 0, torqe_r_v);
+      lv_label_set_text(ui_introqevalue, torqe_r_v);
 
         if(click2_short_waspressed == true){
-         lv_obj_send_event(ui_MenueButtonL, LV_EVENT_CLICKED, NULL);
-        } else if(mxclick_short_waspressed == true){
-         lv_obj_send_event(ui_MenueButtonM, LV_EVENT_CLICKED, NULL);
-        } else if(click3_short_waspressed == true){
-         lv_obj_send_event(ui_EJECTButtonR, LV_EVENT_CLICKED, NULL);
-        }
+        lv_obj_send_event(ui_TorqeButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_TorqeButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(ui_TorqeButtonR, LV_EVENT_CLICKED, NULL);
       }
-      break;
+    }
+    break;
 
-     }
-     mxclick_long_waspressed = false;
-     mxclick_short_waspressed = false;
-     click2_short_waspressed = false;
-     click3_short_waspressed = false;
-     click3_long_waspressed = false;
-     click3_double_waspressed = false;
+    case ST_UI_EJECTSETTINGS:
+    {
+      if(lv_obj_has_state(ui_lefty, LV_STATE_CHECKED) == 1){
+        touch_disabled = true;
+      }
+      
+        if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_EJECTButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_EJECTButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        
+      }
+    }
+    break;
+
+    case ST_UI_SETTINGS: //Settings Menu
+    {
+      touch_disabled = false;
+
+      if(encoder4.getCount() > encoder4_enc + 2){
+        LogDebug("next");
+        lv_group_focus_next(ui_g_settings);
+        encoder4_enc = encoder4.getCount();
+      } else if(encoder4.getCount() < encoder4_enc -2){
+        lv_group_focus_prev(ui_g_settings);
+        LogDebug("Preview");
+        encoder4_enc = encoder4.getCount();
+      }
+
+      if(click2_short_waspressed == true){
+        lv_obj_send_event(ui_MenueButtonL, LV_EVENT_CLICKED, NULL);
+      } else if(mxclick_short_waspressed == true){
+        lv_obj_send_event(ui_MenueButtonM, LV_EVENT_CLICKED, NULL);
+      } else if(click3_short_waspressed == true){
+        lv_obj_send_event(ui_EJECTButtonR, LV_EVENT_CLICKED, NULL);
+      }
+    }
+    break;
+  }
+
+  mxclick_long_waspressed = false;
+  mxclick_short_waspressed = false;
+  click2_short_waspressed = false;
+  click3_short_waspressed = false;
+  click3_long_waspressed = false;
+  click3_double_waspressed = false;
 
   delay(5);
 }
@@ -1093,83 +1156,38 @@ void espNowRemoteTask(void *pvParameters)
   }
 }
 
-/*
-void cumscreentask(void *pvParameters)
-{
-  for(;;)
-  {
-    M5.Lcd.setTextColor(FrontColor);
-    if(encoder1.getCount() != cum_s_enc)
-    {
-    cum_s_enc = encoder1.getCount();
-    cum_speed = map(constrain(cum_s_enc,0,Encoder_MAP),0,Encoder_MAP,1000,30000);
-    M5.Lcd.fillRect(199,S1Pos,85,30,BgColor);
-    M5.Lcd.setCursor(200,S1Pos+progheight-5);
-    M5.Lcd.print(cum_speed);
-    SendCommand(CUMSPEED, cum_speed, CUM);
-    }
-
-  if(encoder2.getCount() != cum_t_enc)
-    {
-    cum_t_enc = encoder2.getCount();
-    cum_time = map(constrain(cum_t_enc,0,Encoder_MAP),0,Encoder_MAP,0,60);
-    M5.Lcd.fillRect(199,S2Pos,85,30,BgColor);
-    M5.Lcd.setCursor(200,S2Pos+progheight-5);
-    M5.Lcd.print(cum_time);
-    SendCommand(CUMTIME, cum_time, CUM);
-    }
-
-   if(encoder3.getCount() != cum_si_enc)
-    {
-    cum_si_enc = encoder3.getCount();
-    cum_size = map(constrain(cum_si_enc,0,Encoder_MAP),0,Encoder_MAP,0,40);
-    M5.Lcd.fillRect(199,S3Pos,85,30,BgColor);
-    M5.Lcd.setCursor(200,S3Pos+progheight-5);
-    M5.Lcd.print(cum_size);
-    SendCommand(CUMSIZE, cum_size, CUM);
-    }
-
-   if(encoder4.getCount() != cum_a_enc)
-    {
-    cum_a_enc = encoder4.getCount();
-    cum_accel = map(constrain(cum_a_enc,0,Encoder_MAP),0,Encoder_MAP,0,20);
-    M5.Lcd.fillRect(199,S4Pos,85,30,BgColor);
-    M5.Lcd.setCursor(200,S4Pos+progheight-5);
-    M5.Lcd.print(cum_accel);
-    SendCommand(CUMACCEL, cum_accel, CUM);
-    }
-  vTaskDelay(100);
-  }
-}
-*/
-
-
 void mxclick() {
   vibrate();
+  playsound();
   mxclick_short_waspressed = true;
 } 
 
 void mxlong(){
   vibrate(200, 200);
+  playsound();
   mxclick_long_waspressed = true;
 } 
 
 void click2() {
   vibrate();
+  playsound();
   click2_short_waspressed = true;
 } // click2
 
 void click3() {
   vibrate();
+  playsound();
   click3_short_waspressed = true;
 } // click3
 
 void c3long() {
-    vibrate();
+  vibrate();
+  playsound();
   click3_long_waspressed = true;
 }
 
 void c3double() {
-    vibrate();
+  vibrate();
+  playsound();
   click3_double_waspressed = true;
 }
